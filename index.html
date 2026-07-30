@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MT Divisórias - Orçamentos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+<header class="topo">
+    <div class="logo-area">
+        <img src="assets/logo.png">
+        <div>
+            <h1>MT Divisórias</h1>
+            <p>Forros, Divisórias e Acabamentos para o seu Espaço</p>
+            <div class="contatos">
+                <span>
+                    <i class="fa-brands fa-whatsapp"></i>
+                    (31) 9 9944-6472
+                </span>
+                <span>
+                    <i class="fa-solid fa-envelope"></i>
+                    claudomiro.gomes@yahoo.com.br
+                </span>
+                <!-- Instagram provisório: Claudomiro ainda vai passar o @ oficial -->
+                <span>
+                    <i class="fa-brands fa-instagram"></i>
+                    @mtdivisorias
+                </span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+<section class="card">
+        <!-- Contêiner do Título e dos Novos Botões Alternadores -->
+        <div class="cabecalho-bloco">
+            <h2 class="titulo-bloco">Novo Documento</h2>
+
+            <div class="alternador-tipo">
+                <button type="button" id="btnTipoOrcamento" class="btn-tipo ativo">
+                    Orçamento
+                </button>
+                <button type="button" id="btnTipoPedido" class="btn-tipo">
+                    Pedido
+                </button>
+                <button type="button" id="btnTipoRecibo" class="btn-tipo">
+                    Recibo
+                </button>
+            </div>
+        </div>
+
+        <!-- Input invisível para o sistema continuar salvando o tipo sem quebrar nada antigo -->
+        <input type="hidden" id="tipo" value="Orçamento">
+
+        <div class="linha">
+            <div class="campo">
+                <label>Cliente</label>
+                <input type="text" id="cliente">
+            </div>
+            <div class="campo">
+                <label>Telefone</label>
+                <input type="text" id="telefone">
+            </div>
+        </div>
+        <div class="linha">
+            <div class="campo">
+                <label>Endereço</label>
+                <input type="text" id="endereco">
+            </div>
+            <div class="campo text-box-cidade">
+                <label>Cidade</label>
+                <input type="text" id="cidade" value="Belo Horizonte">
+            </div>
+            <div class="campo text-box-data">
+                <label>Data</label>
+                <input type="date" id="data">
+            </div>
+        </div>
+    </section>
+    <section class="card">
+        <h2>Itens do Serviço</h2>
+        <table id="tabelaItens">
+            <thead>
+                <tr>
+                    <th>Qtd</th>
+                    <th>Unidade</th>
+                    <th>Descrição</th>
+                    <th>Valor Unitário</th>
+                    <th>Total</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="itens">
+            </tbody>
+        </table>
+        <br>
+        <button id="btnAdicionar">
+            + Adicionar Item
+        </button>
+    </section>
+
+    <section class="card">
+        <h2>Pagamento</h2>
+        <div class="linha">
+            <div class="campo">
+                <label>Entrada</label>
+                <input type="text" id="entrada">
+            </div>
+            <div class="campo">
+                <label>Forma de Pagamento</label>
+                <input type="text" id="pagamento">
+            </div>
+        </div>
+        <div class="campo">
+            <label>Observações</label>
+            <textarea id="observacoes"></textarea>
+        </div>
+    </section>
+
+    <!-- ESSA SEÇÃO TINHA SUMIDO DA SUA TELA POR ERRO DE SCRIPT -->
+    <section class="card total-box">
+        <h2>Total Geral</h2>
+        <h1 id="totalGeral">
+            R$ 0,00
+        </h1>
+        <div class="acoes">
+            <button id="salvarPedido">
+                Salvar Novo Pedido
+            </button>
+            <button id="atualizarPedido" style="display: none; background-color: #ff9800; color: white;">
+                Salvar Alterações
+            </button>
+            <button id="gerarPDF">
+                Gerar PDF
+            </button>
+            <button id="enviarWhats">
+                WhatsApp
+            </button>
+            <button id="btnLimpar" style="background-color: #6c757d; color: white;">
+                Limpar Tela
+            </button>
+        </div>
+    </section>
+
+    <!-- BANCO DE DADOS DE PRODUTOS E SERVIÇOS -->
+    <section class="card">
+        <h2>Produtos e Serviços (Banco de Dados)</h2>
+        <p class="ajuda-texto">Cadastre aqui os produtos/serviços da MT Divisórias. Isso alimenta automaticamente as sugestões e a unidade (m², m ou Unidade) no campo Descrição dos itens — ao escolher um produto já cadastrado, a unidade é preenchida sozinha.</p>
+        <div class="linha">
+            <div class="campo">
+                <label>Nome do Produto/Serviço</label>
+                <input type="text" id="produtoNome">
+            </div>
+            <div class="campo text-box-unidade">
+                <label>Unidade</label>
+                <select id="produtoUnidade">
+                    <option value="m²">m² (metro quadrado)</option>
+                    <option value="m">m (metro linear)</option>
+                    <option value="un">Unidade</option>
+                </select>
+            </div>
+            <div class="campo text-box-valor">
+                <label>Valor Padrão (opcional)</label>
+                <input type="number" id="produtoValor" step="0.01" placeholder="0.00">
+            </div>
+        </div>
+        <button id="btnAdicionarProduto">+ Adicionar Produto</button>
+        <button id="btnAtualizarProduto" style="display: none; background-color: #ff9800; color: white;">Salvar Alterações</button>
+        <br><br>
+        <table>
+            <thead>
+                <tr>
+                    <th>Produto/Serviço</th>
+                    <th>Unidade</th>
+                    <th>Valor Padrão</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="listaProdutosTabela">
+            </tbody>
+        </table>
+    </section>
+
+    <!-- HISTÓRICO QUE TAMBÉM TINHA SUMIDO -->
+    <section class="card">
+        <h2>Histórico de Pedidos</h2>
+        <input
+            type="text"
+            placeholder="Pesquisar cliente..."
+            id="pesquisa">
+        <br><br>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nº</th>
+                    <th>Cliente</th>
+                    <th>Data</th>
+                    <th>Total</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="historico">
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<!-- MODAL PARA ESCREVER A DESCRIÇÃO DO SERVIÇO COM MAIS ESPAÇO -->
+<div class="modal-overlay" id="modalDescricao">
+    <div class="modal-box">
+        <h3>Descrição do Serviço</h3>
+        <textarea id="modalTextarea" placeholder="Descreva o serviço aqui..."></textarea>
+        <div class="modal-acoes">
+            <button type="button" id="modalCancelar" class="modal-btn cancelar">Cancelar</button>
+            <button type="button" id="modalConfirmar" class="modal-btn confirmar">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de produtos/serviços da MT Divisórias para autocompletar o campo Descrição -->
+<datalist id="listaProdutos"></datalist>
+
+<!-- IMPRESCINDÍVEL: Bibliotecas carregadas estritamente nesta ordem no final do body -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+<!-- Seus scripts locais -->
+<script src="js/app.js"></script>
+<script src="js/pdf.js"></script>
+
+</body>
+</html>
