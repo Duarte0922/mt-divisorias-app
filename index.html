@@ -9,6 +9,20 @@
 </head>
 <body>
 
+<!-- TELA DE LOGIN - aparece só na primeira vez neste celular -->
+<div class="modal-overlay ativo" id="telaLogin" style="z-index:9999;">
+    <div class="modal-box">
+        <h3>MT Divisórias</h3>
+        <p class="login-sub">Digite o usuário e a senha para entrar</p>
+        <input type="text" id="loginUsuario" class="login-input" placeholder="Usuário" autocomplete="off">
+        <input type="password" id="loginSenha" class="login-input" placeholder="Senha">
+        <p id="loginErro" class="login-erro">Usuário ou senha incorretos.</p>
+        <div class="modal-acoes" style="justify-content:center;">
+            <button type="button" id="loginConfirmar" class="modal-btn confirmar">Entrar</button>
+        </div>
+    </div>
+</div>
+
 <header class="topo">
     <div class="logo-area">
         <img src="assets/logo.png">
@@ -138,7 +152,7 @@
                 Gerar PDF
             </button>
             <button id="enviarWhats">
-                WhatsApp
+                Enviar PDF
             </button>
             <button id="btnLimpar" style="background-color: #6c757d; color: white;">
                 Limpar Tela
