@@ -24,6 +24,43 @@ const itensBody = document.getElementById("itens");
 const totalGeral = document.getElementById("totalGeral");
 let idPedidoEmEdicao = null; 
 
+// ====== TELA DE LOGIN (só na primeira vez neste celular) ======
+const USUARIO_CORRETO = "divisoria";
+const SENHA_CORRETA = "1234";
+
+function verificarLogin() {
+    const logado = localStorage.getItem("mtdiv_logado");
+    const telaLogin = document.getElementById("telaLogin");
+    if (logado === "sim") {
+        if (telaLogin) telaLogin.classList.remove("ativo");
+    } else {
+        if (telaLogin) telaLogin.classList.add("ativo");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", verificarLogin);
+
+if (document.getElementById("loginConfirmar")) {
+    document.getElementById("loginConfirmar").addEventListener("click", () => {
+        const usuario = document.getElementById("loginUsuario").value.trim().toLowerCase();
+        const senha = document.getElementById("loginSenha").value.trim();
+        const erro = document.getElementById("loginErro");
+
+        if (usuario === USUARIO_CORRETO && senha === SENHA_CORRETA) {
+            localStorage.setItem("mtdiv_logado", "sim");
+            document.getElementById("telaLogin").classList.remove("ativo");
+            erro.style.display = "none";
+        } else {
+            erro.style.display = "block";
+        }
+    });
+
+    // Permite apertar Enter no campo senha pra confirmar
+    document.getElementById("loginSenha").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") document.getElementById("loginConfirmar").click();
+    });
+}
+
 // ====== BANCO DE DADOS DE PRODUTOS/SERVIÇOS ======
 // A lista abaixo é fixa no código: sempre vai aparecer no autocomplete, mesmo se o
 // Firestore estiver fora do ar ou sem permissão para a coleção "produtos".
@@ -214,7 +251,7 @@ document.getElementById("btnLimpar").addEventListener("click", limparFormulario)
 
 // FUNÇÃO PARA ADICIONAR ITEM NA GRADE
 // unidade aceita "m²" (metro quadrado), "m" (metro linear) ou "un" (unidade)
-// usarCalculadoraMedidas: true para itens novos (ativa Comprimento x Largura quando for m²/m).
+// usarCalculadoraMedidas: true para itens novos (ativa Comprimento x Largura / m² total quando for m²/m).
 // Em pedidos antigos carregados do histórico (sem medidas salvas) isso vem como false,
 // para não apagar a quantidade que já estava salva.
 function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, usarCalculadoraMedidas = true) {
@@ -226,6 +263,8 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                     <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0">
                     <span class="medida-x">×</span>
                     <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
+                    <span class="medida-ou">ou</span>
+                    <input type="number" class="item-input m2total" placeholder="m² total" step="0.01" min="0">
                 </div>
                 <div class="medida-linear">
                     <input type="number" class="item-input comprimento-linear" placeholder="Comprimento (m)" step="0.01" min="0">
@@ -267,6 +306,7 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
     tr.querySelector(".unidade").addEventListener("change", () => atualizarVisibilidadeMedidas(tr));
     tr.querySelector(".comprimento").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".largura").addEventListener("input", () => calcularQtdPorArea(tr));
+    tr.querySelector(".m2total").addEventListener("input", () => calcularQtdPorTotalDireto(tr));
     tr.querySelector(".comprimento-linear").addEventListener("input", () => calcularQtdPorLinear(tr));
     tr.querySelector(".descricao").addEventListener("input", function () {
         aplicarProdutoNaLinha(tr, this.value);
@@ -316,12 +356,27 @@ function atualizarVisibilidadeMedidas(tr) {
     }
 }
 
-// Qtd = Comprimento x Largura (m²)
+// Qtd = Comprimento x Largura (m²). Se o usuário tiver digitado um m² total direto,
+// esse campo é limpo pra não ficar os dois valores brigando.
 function calcularQtdPorArea(tr) {
     const c = parseFloat(tr.querySelector(".comprimento").value) || 0;
     const l = parseFloat(tr.querySelector(".largura").value) || 0;
+    const m2totalInput = tr.querySelector(".m2total");
+    if (m2totalInput && m2totalInput.value) m2totalInput.value = "";
     tr.querySelector(".qtd").value = (c * l).toFixed(2);
     calcularTudo();
+}
+
+// Qtd = valor digitado direto no campo "m² total". Se o usuário tiver preenchido
+// Comprimento/Largura, eles são limpos pra não ficar os dois valores brigando.
+function calcularQtdPorTotalDireto(tr) {
+    const m2total = parseFloat(tr.querySelector(".m2total").value) || 0;
+    if (m2total > 0) {
+        tr.querySelector(".comprimento").value = "";
+        tr.querySelector(".largura").value = "";
+        tr.querySelector(".qtd").value = m2total.toFixed(2);
+        calcularTudo();
+    }
 }
 
 // Qtd = Comprimento (m linear)
@@ -576,10 +631,10 @@ async function excluirPedido(idDocumento) {
     }
 }
 
-// NOVO BOTÃO WHATSAPP ATUALIZADO: SUPORTA ORÇAMENTOS, PEDIDOS E RECIBOS COM SUA LOGO
+// BOTÃO "ENVIAR PDF": GERA O PDF E MANDA O ARQUIVO DE VERDADE (NÃO LINK)
+// usando o compartilhamento nativo do celular (abre a lista de apps: WhatsApp, Bloco de Notas, etc.)
 document.getElementById("enviarWhats").addEventListener("click", async () => {
     const cliente = document.getElementById("cliente").value;
-    const telefoneRaw = document.getElementById("telefone").value.replace(/\D/g, "");
     const tipo = document.getElementById("tipo").value;
     const data = document.getElementById("data").value;
     const total = totalGeral.innerText;
@@ -590,17 +645,17 @@ document.getElementById("enviarWhats").addEventListener("click", async () => {
 
     const botao = document.getElementById("enviarWhats");
     const textoOriginal = botao.innerText;
-    botao.innerText = "Processando PDF...";
+    botao.innerText = "Gerando PDF...";
     botao.disabled = true;
 
     try {
         // Correção do construtor jsPDF para carregar no escopo do app.js
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        
+
         const dadosPedido = {
             numero: Math.floor(Date.now() / 1000).toString().slice(-5),
-            cliente, 
+            cliente,
             telefone: document.getElementById("telefone").value,
             endereco: document.getElementById("endereco").value,
             cidade: document.getElementById("cidade").value,
@@ -631,53 +686,53 @@ document.getElementById("enviarWhats").addEventListener("click", async () => {
 
         await carregarLogoEDesenhar();
 
-        // Envia o PDF para o Firebase Storage
         const pdfBlob = doc.output('blob');
-        const nomeArquivo = `pdfs/${dadosPedido.numero}_${Date.now()}.pdf`;
-        const storageRef = storage.ref().child(nomeArquivo);
+        const nomeArquivo = `${tipo}_${cliente.replace(/\s+/g, "_")}_${dadosPedido.numero}.pdf`;
 
-        const snapshot = await storageRef.put(pdfBlob);
-        const urlPublicaPdf = await snapshot.ref.getDownloadURL();
-
-        // Salva os registros completos no Firestore
-        dadosPedido.urlPdf = urlPublicaPdf;
+        // Salva no Firebase Storage/Firestore pra continuar funcionando o histórico
+        // e o botão "Ver PDF". Se isso falhar (sem internet, por exemplo), o envio
+        // do arquivo pro cliente continua funcionando normalmente.
+        botao.innerText = "Salvando...";
+        try {
+            const storageRef = storage.ref().child(`pdfs/${dadosPedido.numero}_${Date.now()}.pdf`);
+            const snapshot = await storageRef.put(pdfBlob);
+            dadosPedido.urlPdf = await snapshot.ref.getDownloadURL();
+        } catch (e) {
+            console.warn("Não foi possível salvar o PDF no histórico online:", e);
+        }
         dadosPedido.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
         await db.collection("pedidos").add(dadosPedido);
-
-        // Monta texto dinâmico dependendo do tipo (Orçamento, Pedido ou Recibo)
-        let mensagem = `Olá ${cliente}! Segue o link do seu *${tipo}* da MT Divisórias:\n\n`;
-        mensagem += `*Resumo:*\n`;
-        itens.forEach(item => {
-            const qtdUnidade = `${item.qtd}${item.unidade ? ' ' + item.unidade : ''}`;
-            mensagem += `• ${qtdUnidade} de ${item.descricao} - ${item.totalItem}\n`;
-        });
-        mensagem += `\n*Total Geral: ${total}*\n`;
-        
-        if (tipo === "Recibo" && dadosPedido.entrada !== "R$ 0,00") {
-            mensagem += `*Valor Recebido: ${dadosPedido.entrada}*\n`;
-        }
-        
-        mensagem += `\n👉 Clique no link para abrir o PDF original:\n${urlPublicaPdf}`;
-
-        let link;
-        if (telefoneRaw) {
-            const numeroCompleto = telefoneRaw.length <= 11 ? `55${telefoneRaw}` : telefoneRaw;
-            link = `https://wa.me/${numeroCompleto}?text=${encodeURIComponent(mensagem)}`;
-        } else {
-            link = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
-        }
-
-        window.open(link, "_blank");
         carregarHistorico();
+
+        // ENVIA O ARQUIVO PDF DE VERDADE (não link) usando o compartilhamento nativo do celular
+        const arquivoPdf = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+
+        if (navigator.canShare && navigator.canShare({ files: [arquivoPdf] })) {
+            botao.innerText = "Abrindo compartilhamento...";
+            await navigator.share({
+                files: [arquivoPdf],
+                title: `${tipo} - ${cliente}`,
+                text: `${tipo} da MT Divisórias para ${cliente} - Total: ${total}`
+            });
+        } else {
+            // Celular/navegador sem suporte a compartilhar arquivo: baixa o PDF
+            // pro usuário anexar manualmente no WhatsApp ou abrir no bloco de notas
+            doc.save(nomeArquivo);
+            alert("Este navegador não permite enviar o PDF direto pelo compartilhamento. O arquivo foi baixado — agora é só abrir o WhatsApp (ou o app que preferir) e anexar o PDF que ficou salvo no celular.");
+        }
 
     } catch (error) {
         console.error(error);
-        alert("Erro ao processar o arquivo.");
+        // Se o usuário simplesmente cancelou a tela de compartilhamento, não é erro
+        if (error.name !== "AbortError") {
+            alert("Erro ao processar o arquivo.");
+        }
     } finally {
         botao.innerText = textoOriginal;
         botao.disabled = false;
     }
 });
+
 // CONTROLE DOS NOVOS BOTÕES DE SELEÇÃO (ORÇAMENTO / PEDIDO / RECIBO)
 const btnOrcamento = document.getElementById("btnTipoOrcamento");
 const btnPedido = document.getElementById("btnTipoPedido");
