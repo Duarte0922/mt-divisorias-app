@@ -163,11 +163,12 @@
     <!-- BANCO DE DADOS DE PRODUTOS E SERVIÇOS -->
     <section class="card">
         <h2>Produtos e Serviços (Banco de Dados)</h2>
-        <p class="ajuda-texto">Cadastre aqui os produtos/serviços da MT Divisórias. Isso alimenta automaticamente as sugestões e a unidade (m², m ou Unidade) no campo Descrição dos itens — ao escolher um produto já cadastrado, a unidade é preenchida sozinha.</p>
+        <p class="ajuda-texto">Clique na seta do campo abaixo para ver todos os produtos já cadastrados e escolher um (os dados dele carregam sozinhos para editar). Para cadastrar um produto novo, digite o nome normalmente e clique em Adicionar.</p>
         <div class="linha">
             <div class="campo">
                 <label>Nome do Produto/Serviço</label>
-                <input type="text" id="produtoNome">
+                <input type="text" id="produtoNome" list="listaProdutosCadastro" autocomplete="off" placeholder="Digite ou escolha na lista">
+                <datalist id="listaProdutosCadastro"></datalist>
             </div>
             <div class="campo text-box-unidade">
                 <label>Unidade</label>
@@ -184,19 +185,7 @@
         </div>
         <button id="btnAdicionarProduto">+ Adicionar Produto</button>
         <button id="btnAtualizarProduto" style="display: none; background-color: #ff9800; color: white;">Salvar Alterações</button>
-        <br><br>
-        <table>
-            <thead>
-                <tr>
-                    <th>Produto/Serviço</th>
-                    <th>Unidade</th>
-                    <th>Valor Padrão</th>
-                    <th>Ações</th>
-                </tr>
-            </thead>
-            <tbody id="listaProdutosTabela">
-            </tbody>
-        </table>
+        <button id="btnExcluirProdutoCadastro" style="display: none; background-color: var(--red); color: white; margin-left: 10px;">Excluir Produto</button>
     </section>
 
     <!-- HISTÓRICO QUE TAMBÉM TINHA SUMIDO -->
