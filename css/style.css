@@ -13,6 +13,90 @@
 
 body { background: var(--bg); color: var(--txt); }
 
+/* TELA DE LOGIN */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0c4a6e, #1e293b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 16px;
+}
+
+.login-box {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.login-box img { width: 70px; height: auto; border-radius: 8px; margin-bottom: 12px; }
+.login-box h1 { color: var(--accent); font-size: 22px; margin-bottom: 4px; }
+.login-box p { color: var(--txt2); font-size: 13px; margin-bottom: 22px; line-height: 1.4; }
+.login-box .campo { text-align: left; margin-bottom: 14px; }
+
+.login-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #FFFFFF;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.2s;
+}
+
+.login-btn:hover { background: #0369A1; }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-erro {
+  color: var(--red);
+  font-size: 12px;
+  margin-top: 14px;
+  min-height: 16px;
+}
+
+.login-links {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.login-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.login-links a:hover { text-decoration: underline; }
+
+/* BOTÃO SAIR (no canto do cabeçalho) */
+.topo { position: relative; }
+
+.btn-sair {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--txt2);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sair:hover { border-color: var(--red); color: var(--red); background: #FEF2F2; }
+
 /* TOPO / HEADER */
 .topo {
   background: var(--surface);
@@ -228,7 +312,7 @@ table tr:last-child td { border-bottom: none; }
 
 .btn-remover:hover { background: rgba(220, 38, 38, 0.1); }
 
-/* CAMPO QTD: CALCULADORA DE COMPRIMENTO X LARGURA (m²), M² TOTAL DIRETO OU COMPRIMENTO (m) */
+/* CAMPO QTD: CALCULADORA DE COMPRIMENTO X LARGURA (m²) OU COMPRIMENTO (m) */
 .qtd-wrap { display: flex; flex-direction: column; gap: 4px; width: 100%; }
 
 .medida-area,
@@ -236,7 +320,6 @@ table tr:last-child td { border-bottom: none; }
   display: none;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
 }
 
 .medida-area .item-input,
@@ -247,20 +330,7 @@ table tr:last-child td { border-bottom: none; }
   font-size: 12px;
 }
 
-.medida-area .item-input.m2total {
-  border-left: 2px solid var(--accent);
-}
-
 .medida-x { color: var(--txt2); font-size: 12px; font-weight: 700; flex-shrink: 0; }
-
-.medida-ou {
-  color: var(--txt2);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  padding: 0 2px;
-}
 
 .item-input.qtd.qtd-calculada {
   background: #E0F2FE;
@@ -415,47 +485,15 @@ table tr:last-child td { border-bottom: none; }
   color: #FFFFFF;
 }
 
-/* TELA DE LOGIN */
-#telaLogin .modal-box { text-align: center; }
-
-.login-sub {
-  color: var(--txt2);
-  font-size: 13px;
-  margin-bottom: 16px;
-}
-
-.login-input {
-  width: 100%;
-  margin-bottom: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #F1F5F9;
-  color: var(--txt);
-  font-size: 14px;
-  outline: none;
-  transition: all 0.2s;
-}
-
-.login-input:focus {
-  border-color: var(--accent);
-  background: #FFFFFF;
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
-}
-
-.login-erro {
-  color: var(--red);
-  font-size: 12px;
-  margin-bottom: 10px;
-  display: none;
-}
-
 /* RESPONSIVIDADE (MOBILE) */
 @media (max-width: 700px) {
   .linha { flex-direction: column; }
   .logo-area { flex-direction: column; text-align: center; }
   .contatos { justify-content: center; }
   .total-box h1 { font-size: 36px; }
+
+  .btn-sair { top: 10px; right: 10px; font-size: 10px; padding: 5px 10px; }
+  .login-box { padding: 26px 20px; }
 
   .cabecalho-bloco { flex-direction: column; align-items: stretch; }
   .alternador-tipo { width: 100%; min-width: 0; }
