@@ -14,6 +14,13 @@ if (!firebase.apps.length) {
 }
 const db = firebase.firestore();
 const storage = firebase.storage(); // Inicializa o Storage corretamente
+const auth = firebase.auth();
+
+// LOCAL = o navegador lembra o login mesmo depois de fechar o app/aba.
+// Ou seja: a pessoa faz login uma vez no aparelho dela e não precisa mais digitar senha.
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+    console.warn("Não foi possível definir a persistência do login:", err);
+});
 
 // Ativa o cache offline seguro
 db.enablePersistence().catch((err) => {
@@ -23,43 +30,6 @@ db.enablePersistence().catch((err) => {
 const itensBody = document.getElementById("itens");
 const totalGeral = document.getElementById("totalGeral");
 let idPedidoEmEdicao = null; 
-
-// ====== TELA DE LOGIN (só na primeira vez neste celular) ======
-const USUARIO_CORRETO = "divisoria";
-const SENHA_CORRETA = "1234";
-
-function verificarLogin() {
-    const logado = localStorage.getItem("mtdiv_logado");
-    const telaLogin = document.getElementById("telaLogin");
-    if (logado === "sim") {
-        if (telaLogin) telaLogin.classList.remove("ativo");
-    } else {
-        if (telaLogin) telaLogin.classList.add("ativo");
-    }
-}
-
-document.addEventListener("DOMContentLoaded", verificarLogin);
-
-if (document.getElementById("loginConfirmar")) {
-    document.getElementById("loginConfirmar").addEventListener("click", () => {
-        const usuario = document.getElementById("loginUsuario").value.trim().toLowerCase();
-        const senha = document.getElementById("loginSenha").value.trim();
-        const erro = document.getElementById("loginErro");
-
-        if (usuario === USUARIO_CORRETO && senha === SENHA_CORRETA) {
-            localStorage.setItem("mtdiv_logado", "sim");
-            document.getElementById("telaLogin").classList.remove("ativo");
-            erro.style.display = "none";
-        } else {
-            erro.style.display = "block";
-        }
-    });
-
-    // Permite apertar Enter no campo senha pra confirmar
-    document.getElementById("loginSenha").addEventListener("keypress", (e) => {
-        if (e.key === "Enter") document.getElementById("loginConfirmar").click();
-    });
-}
 
 // ====== BANCO DE DADOS DE PRODUTOS/SERVIÇOS ======
 // A lista abaixo é fixa no código: sempre vai aparecer no autocomplete, mesmo se o
@@ -85,6 +55,19 @@ let idProdutoEmEdicao = null;
 
 function popularDatalist() {
     const datalist = document.getElementById("listaProdutos");
+    if (!datalist) return;
+    datalist.innerHTML = "";
+    CACHE_PRODUTOS.forEach(p => {
+        const option = document.createElement("option");
+        option.value = p.nome;
+        datalist.appendChild(option);
+    });
+}
+
+// Mesma ideia da função acima, mas para a lista suspensa do campo de CADASTRO de produto
+// (seção "Produtos e Serviços"). Ao clicar na seta do campo, aparecem todos os produtos já salvos.
+function popularDatalistCadastro() {
+    const datalist = document.getElementById("listaProdutosCadastro");
     if (!datalist) return;
     datalist.innerHTML = "";
     CACHE_PRODUTOS.forEach(p => {
@@ -139,11 +122,13 @@ function renderizarTabelaProdutos() {
 function carregarProdutos() {
     CACHE_PRODUTOS = PRODUTOS_PADRAO_MT.map(p => ({ ...p, id: null }));
     popularDatalist();
+    popularDatalistCadastro();
     renderizarTabelaProdutos();
 
     db.collection("produtos").orderBy("nome").get().then((snapshot) => {
         snapshot.forEach((doc) => mesclarProdutoFirestore(doc.id, doc.data()));
         popularDatalist();
+        popularDatalistCadastro();
         renderizarTabelaProdutos();
     }).catch(err => {
         console.warn("Não foi possível buscar produtos extras no Firestore (a lista padrão continua funcionando normalmente):", err);
@@ -230,6 +215,8 @@ function limparFormularioProduto() {
     document.getElementById("produtoValor").value = "";
     document.getElementById("btnAdicionarProduto").style.display = "inline-block";
     document.getElementById("btnAtualizarProduto").style.display = "none";
+    const btnExcluir = document.getElementById("btnExcluirProdutoCadastro");
+    if (btnExcluir) btnExcluir.style.display = "none";
 }
 
 async function excluirProduto(id) {
@@ -240,18 +227,178 @@ async function excluirProduto(id) {
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    carregarProdutos();
-    limparFormulario();
-    carregarHistorico();
+// Quando o nome digitado/escolhido no campo bate com um produto já salvo, carrega
+// unidade e valor dele sozinho (igual clicar em "Editar" fazia na tabela antiga).
+// Se o nome não bate com nada, volta pro modo "produto novo".
+if (document.getElementById("produtoNome")) {
+    document.getElementById("produtoNome").addEventListener("input", () => {
+        const nomeDigitado = document.getElementById("produtoNome").value.trim().toLowerCase();
+        const encontrado = CACHE_PRODUTOS.find(p => p.nome.trim().toLowerCase() === nomeDigitado);
+        const btnExcluir = document.getElementById("btnExcluirProdutoCadastro");
+
+        if (encontrado) {
+            carregarProdutoParaEdicao(encontrado.id, encontrado);
+            if (btnExcluir) btnExcluir.style.display = encontrado.id ? "inline-block" : "none";
+        } else {
+            idProdutoEmEdicao = null;
+            document.getElementById("produtoUnidade").value = "m²";
+            document.getElementById("produtoValor").value = "";
+            document.getElementById("btnAdicionarProduto").style.display = "inline-block";
+            document.getElementById("btnAtualizarProduto").style.display = "none";
+            if (btnExcluir) btnExcluir.style.display = "none";
+        }
+    });
+}
+
+if (document.getElementById("btnExcluirProdutoCadastro")) {
+    document.getElementById("btnExcluirProdutoCadastro").addEventListener("click", () => {
+        if (idProdutoEmEdicao) excluirProduto(idProdutoEmEdicao);
+    });
+}
+
+// ====== LOGIN / LOGOUT ======
+const telaLogin = document.getElementById("telaLogin");
+const appConteudo = document.getElementById("appConteudo");
+
+// Isso roda toda vez que o estado de login muda: ao abrir o site, ao entrar, ou ao sair.
+// Como a persistência é LOCAL, se a pessoa já entrou antes nesse aparelho, isso já vem
+// com "user" preenchido sozinho, sem precisar digitar senha de novo.
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        telaLogin.style.display = "none";
+        appConteudo.style.display = "block";
+        carregarProdutos();
+        limparFormulario();
+        carregarHistorico();
+    } else {
+        telaLogin.style.display = "flex";
+        appConteudo.style.display = "none";
+    }
 });
+
+async function fazerLogin() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const senha = document.getElementById("loginSenha").value;
+    const confirmarSenha = document.getElementById("loginConfirmarSenha").value;
+    const erroEl = document.getElementById("loginErro");
+    const btn = document.getElementById("btnEntrar");
+    erroEl.style.color = "var(--red)";
+    erroEl.textContent = "";
+
+    if (!email || !senha) {
+        erroEl.textContent = "Preencha e-mail e senha.";
+        return;
+    }
+
+    if (modoCriarConta) {
+        if (senha.length < 6) {
+            erroEl.textContent = "A senha precisa ter pelo menos 6 caracteres.";
+            return;
+        }
+        if (senha !== confirmarSenha) {
+            erroEl.textContent = "As senhas não são iguais.";
+            return;
+        }
+    }
+
+    btn.disabled = true;
+    btn.innerText = modoCriarConta ? "Criando conta..." : "Entrando...";
+    try {
+        if (modoCriarConta) {
+            await auth.createUserWithEmailAndPassword(email, senha);
+        } else {
+            await auth.signInWithEmailAndPassword(email, senha);
+        }
+        // Não precisa fazer mais nada aqui: o onAuthStateChanged acima já mostra o app.
+    } catch (error) {
+        if (error.code === "auth/email-already-in-use") {
+            erroEl.textContent = "Esse e-mail já tem conta. Clique em \"Já tem conta? Entrar\" e faça login normalmente.";
+        } else if (error.code === "auth/weak-password") {
+            erroEl.textContent = "Senha muito fraca. Use pelo menos 6 caracteres.";
+        } else if (error.code === "auth/invalid-email") {
+            erroEl.textContent = "Digite um e-mail válido.";
+        } else {
+            erroEl.textContent = modoCriarConta ? "Não foi possível criar a conta." : "E-mail ou senha incorretos.";
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerText = modoCriarConta ? "Criar Conta" : "Entrar";
+    }
+}
+
+// Alterna entre "Entrar" e "Criar conta" na mesma tela
+let modoCriarConta = false;
+
+function atualizarTextosLogin() {
+    const subtitulo = document.getElementById("loginSubtitulo");
+    const btn = document.getElementById("btnEntrar");
+    const linkAlternar = document.getElementById("linkAlternarModo");
+    const campoConfirmar = document.getElementById("campoConfirmarSenha");
+    const erroEl = document.getElementById("loginErro");
+
+    if (modoCriarConta) {
+        subtitulo.textContent = "Crie sua conta com seu e-mail de verdade — assim dá pra recuperar a senha se um dia esquecer.";
+        btn.innerText = "Criar Conta";
+        linkAlternar.textContent = "Já tem conta? Entrar";
+        campoConfirmar.style.display = "block";
+    } else {
+        subtitulo.textContent = "Entre com seu e-mail e senha para acessar o sistema";
+        btn.innerText = "Entrar";
+        linkAlternar.textContent = "Ainda não tem conta? Criar uma conta";
+        campoConfirmar.style.display = "none";
+    }
+    erroEl.textContent = "";
+}
+
+document.getElementById("linkAlternarModo").addEventListener("click", (e) => {
+    e.preventDefault();
+    modoCriarConta = !modoCriarConta;
+    atualizarTextosLogin();
+});
+
+document.getElementById("linkEsqueciSenha").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("loginEmail").value.trim();
+    const erroEl = document.getElementById("loginErro");
+
+    if (!email) {
+        erroEl.style.color = "var(--red)";
+        erroEl.textContent = "Digite seu e-mail no campo acima e clique aqui de novo.";
+        return;
+    }
+
+    try {
+        await auth.sendPasswordResetEmail(email);
+        erroEl.style.color = "var(--green)";
+        erroEl.textContent = "Link de recuperação enviado! Confira a caixa de entrada (e o spam) do seu e-mail.";
+    } catch (error) {
+        erroEl.style.color = "var(--red)";
+        erroEl.textContent = "Não foi possível enviar. Confira se o e-mail está digitado certo.";
+    }
+});
+
+document.getElementById("btnEntrar").addEventListener("click", fazerLogin);
+document.getElementById("loginSenha").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") fazerLogin();
+});
+document.getElementById("loginEmail").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") document.getElementById("loginSenha").focus();
+});
+
+if (document.getElementById("btnSair")) {
+    document.getElementById("btnSair").addEventListener("click", () => {
+        if (confirm("Sair da conta neste aparelho? Vai ser preciso digitar a senha de novo pra entrar.")) {
+            auth.signOut();
+        }
+    });
+}
 
 document.getElementById("btnAdicionar").addEventListener("click", () => adicionarItem());
 document.getElementById("btnLimpar").addEventListener("click", limparFormulario);
 
 // FUNÇÃO PARA ADICIONAR ITEM NA GRADE
 // unidade aceita "m²" (metro quadrado), "m" (metro linear) ou "un" (unidade)
-// usarCalculadoraMedidas: true para itens novos (ativa Comprimento x Largura / m² total quando for m²/m).
+// usarCalculadoraMedidas: true para itens novos (ativa Comprimento x Largura quando for m²/m).
 // Em pedidos antigos carregados do histórico (sem medidas salvas) isso vem como false,
 // para não apagar a quantidade que já estava salva.
 function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, usarCalculadoraMedidas = true) {
@@ -263,8 +410,6 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                     <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0">
                     <span class="medida-x">×</span>
                     <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
-                    <span class="medida-ou">ou</span>
-                    <input type="number" class="item-input m2total" placeholder="m² total" step="0.01" min="0">
                 </div>
                 <div class="medida-linear">
                     <input type="number" class="item-input comprimento-linear" placeholder="Comprimento (m)" step="0.01" min="0">
@@ -306,7 +451,6 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
     tr.querySelector(".unidade").addEventListener("change", () => atualizarVisibilidadeMedidas(tr));
     tr.querySelector(".comprimento").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".largura").addEventListener("input", () => calcularQtdPorArea(tr));
-    tr.querySelector(".m2total").addEventListener("input", () => calcularQtdPorTotalDireto(tr));
     tr.querySelector(".comprimento-linear").addEventListener("input", () => calcularQtdPorLinear(tr));
     tr.querySelector(".descricao").addEventListener("input", function () {
         aplicarProdutoNaLinha(tr, this.value);
@@ -356,24 +500,11 @@ function atualizarVisibilidadeMedidas(tr) {
     }
 }
 
-// Qtd = Comprimento x Largura (m²). Se o usuário tiver digitado um m² total direto,
-// esse campo é limpo pra não ficar os dois valores brigando.
+// Qtd = Comprimento x Largura (m²)
 function calcularQtdPorArea(tr) {
     const c = parseFloat(tr.querySelector(".comprimento").value) || 0;
     const l = parseFloat(tr.querySelector(".largura").value) || 0;
-    const m2totalInput = tr.querySelector(".m2total");
-    if (m2totalInput && m2totalInput.value) m2totalInput.value = "";
     tr.querySelector(".qtd").value = (c * l).toFixed(2);
-    calcularTudo();
-}
-
-// Qtd = valor digitado direto no campo "m² total". Se o usuário tiver preenchido
-// Comprimento/Largura, eles são limpos pra não ficar os dois valores brigando.
-function calcularQtdPorTotalDireto(tr) {
-    const m2total = parseFloat(tr.querySelector(".m2total").value) || 0;
-    tr.querySelector(".comprimento").value = "";
-    tr.querySelector(".largura").value = "";
-    tr.querySelector(".qtd").value = m2total.toFixed(2);
     calcularTudo();
 }
 
@@ -629,10 +760,14 @@ async function excluirPedido(idDocumento) {
     }
 }
 
-// BOTÃO "ENVIAR PDF": GERA O PDF E MANDA O ARQUIVO DE VERDADE (NÃO LINK)
-// usando o compartilhamento nativo do celular (abre a lista de apps: WhatsApp, Bloco de Notas, etc.)
+// BOTÃO WHATSAPP: ENVIA O PDF DE VERDADE (ANEXADO), NÃO UM LINK
+// No celular, usa o compartilhamento nativo do aparelho (o mesmo menu que abre pra compartilhar
+// uma foto) já com o PDF anexado — a pessoa só escolhe o contato do WhatsApp e manda.
+// Se o navegador não suportar isso (ex.: computador), baixa o PDF automaticamente e abre o
+// WhatsApp só com o texto, pra anexar o arquivo manualmente.
 document.getElementById("enviarWhats").addEventListener("click", async () => {
     const cliente = document.getElementById("cliente").value;
+    const telefoneRaw = document.getElementById("telefone").value.replace(/\D/g, "");
     const tipo = document.getElementById("tipo").value;
     const data = document.getElementById("data").value;
     const total = totalGeral.innerText;
@@ -664,73 +799,77 @@ document.getElementById("enviarWhats").addEventListener("click", async () => {
         };
 
         // Renderiza o desenho idêntico usando a função do seu arquivo pdf.js
-        const carregarLogoEDesenhar = () => {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.crossOrigin = "Anonymous";
-                // Usa o arquivo local da pasta assets (mesma logo do cabeçalho do site)
-                img.src = "assets/logo.png";
-                
-                img.onload = () => {
-                    desenharConteudo(doc, img, dadosPedido, false);
-                    resolve();
-                };
-                img.onerror = () => {
-                    desenharConteudo(doc, null, dadosPedido, false);
-                    resolve();
-                };
-            });
-        };
+        await new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.src = "assets/logo.png";
+            img.onload = () => { desenharConteudo(doc, img, dadosPedido, false); resolve(); };
+            img.onerror = () => { desenharConteudo(doc, null, dadosPedido, false); resolve(); };
+        });
 
-        await carregarLogoEDesenhar();
-
-        const pdfBlob = doc.output('blob');
-        const nomeArquivo = `${tipo}_${cliente.replace(/\s+/g, "_")}_${dadosPedido.numero}.pdf`;
-
-        // Salva no Firebase Storage/Firestore pra continuar funcionando o histórico
-        // e o botão "Ver PDF". Se isso falhar (sem internet, por exemplo), o envio
-        // do arquivo pro cliente continua funcionando normalmente.
-        botao.innerText = "Salvando...";
-        try {
-            const storageRef = storage.ref().child(`pdfs/${dadosPedido.numero}_${Date.now()}.pdf`);
-            const snapshot = await storageRef.put(pdfBlob);
-            dadosPedido.urlPdf = await snapshot.ref.getDownloadURL();
-        } catch (e) {
-            console.warn("Não foi possível salvar o PDF no histórico online:", e);
-        }
+        // Salva no histórico (não depende mais do Firebase Storage)
         dadosPedido.criadoEm = firebase.firestore.FieldValue.serverTimestamp();
         await db.collection("pedidos").add(dadosPedido);
         carregarHistorico();
 
-        // ENVIA O ARQUIVO PDF DE VERDADE (não link) usando o compartilhamento nativo do celular
-        const arquivoPdf = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+        // Monta o texto/resumo que acompanha o PDF
+        let mensagem = `Olá ${cliente}! Segue o seu *${tipo}* da MT Divisórias:\n\n*Resumo:*\n`;
+        itens.forEach(item => {
+            const qtdUnidade = `${item.qtd}${item.unidade ? ' ' + item.unidade : ''}`;
+            mensagem += `• ${qtdUnidade} de ${item.descricao} - ${item.totalItem}\n`;
+        });
+        mensagem += `\n*Total Geral: ${total}*`;
+        if (tipo === "Recibo" && dadosPedido.entrada !== "R$ 0,00") {
+            mensagem += `\n*Valor Recebido: ${dadosPedido.entrada}*`;
+        }
 
-        if (navigator.canShare && navigator.canShare({ files: [arquivoPdf] })) {
-            botao.innerText = "Abrindo compartilhamento...";
-            await navigator.share({
-                files: [arquivoPdf],
-                title: `${tipo} - ${cliente}`,
-                text: `${tipo} da MT Divisórias para ${cliente} - Total: ${total}`
-            });
-        } else {
-            // Celular/navegador sem suporte a compartilhar arquivo: baixa o PDF
-            // pro usuário anexar manualmente no WhatsApp ou abrir no bloco de notas
+        const nomeArquivo = `${tipo}_${cliente}.pdf`;
+        const pdfBlob = doc.output('blob');
+        let arquivoCompartilhado = false;
+
+        // Tenta o compartilhamento nativo com o arquivo anexado (funciona na maioria dos celulares)
+        if (navigator.canShare) {
+            try {
+                const arquivoPdf = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+                if (navigator.canShare({ files: [arquivoPdf] })) {
+                    await navigator.share({
+                        files: [arquivoPdf],
+                        title: `${tipo} MT Divisórias`,
+                        text: mensagem
+                    });
+                    arquivoCompartilhado = true;
+                }
+            } catch (erroCompartilhar) {
+                // Se a pessoa cancelou o menu de compartilhar, não é erro — só não cai no fallback
+                if (erroCompartilhar && erroCompartilhar.name === "AbortError") {
+                    arquivoCompartilhado = true;
+                }
+            }
+        }
+
+        // Fallback (computador ou navegador sem suporte): baixa o PDF e abre o WhatsApp só com o texto
+        if (!arquivoCompartilhado) {
             doc.save(nomeArquivo);
-            alert("Este navegador não permite enviar o PDF direto pelo compartilhamento. O arquivo foi baixado — agora é só abrir o WhatsApp (ou o app que preferir) e anexar o PDF que ficou salvo no celular.");
+
+            const mensagemComAviso = mensagem + "\n\n📎 O PDF foi baixado no seu aparelho — é só anexar aqui no WhatsApp.";
+            let link;
+            if (telefoneRaw) {
+                const numeroCompleto = telefoneRaw.length <= 11 ? `55${telefoneRaw}` : telefoneRaw;
+                link = `https://wa.me/${numeroCompleto}?text=${encodeURIComponent(mensagemComAviso)}`;
+            } else {
+                link = `https://wa.me/?text=${encodeURIComponent(mensagemComAviso)}`;
+            }
+            window.open(link, "_blank");
         }
 
     } catch (error) {
         console.error(error);
-        // Se o usuário simplesmente cancelou a tela de compartilhamento, não é erro
-        if (error.name !== "AbortError") {
-            alert("Erro ao processar o arquivo.");
-        }
+        alert("Erro ao processar o arquivo.");
     } finally {
         botao.innerText = textoOriginal;
         botao.disabled = false;
     }
 });
-
 // CONTROLE DOS NOVOS BOTÕES DE SELEÇÃO (ORÇAMENTO / PEDIDO / RECIBO)
 const btnOrcamento = document.getElementById("btnTipoOrcamento");
 const btnPedido = document.getElementById("btnTipoPedido");
