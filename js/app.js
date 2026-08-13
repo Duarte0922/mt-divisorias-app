@@ -128,18 +128,20 @@ function carregarProdutos() {
     });
 }
 
-// Converte texto digitado (com vírgula ou ponto) em número de verdade.
-// Aceita formatos como: "10,50" | "1.500,25" | "10.50" | "10"
+// Converte texto digitado (formato brasileiro) em número de verdade.
+// Regra: PONTO é sempre separador de milhar (é removido) e VÍRGULA é sempre o decimal.
+// "1750"      -> 1750
+// "1.750"     -> 1750   (o ponto NÃO é decimal, é milhar)
+// "1750,50"   -> 1750.5
+// "1.750,50"  -> 1750.5
 function parseValorMonetario(valor) {
     if (valor === null || valor === undefined) return 0;
     valor = valor.toString().trim();
     if (!valor) return 0;
-    // remove tudo que não for dígito, vírgula, ponto ou sinal de menos
-    valor = valor.replace(/[^\d,.-]/g, "");
-    if (valor.includes(",")) {
-        // formato brasileiro: ponto é separador de milhar, vírgula é decimal
-        valor = valor.replace(/\./g, "").replace(",", ".");
-    }
+    // remove tudo que não for dígito, vírgula ou sinal de menos (o ponto é descartado aqui)
+    valor = valor.replace(/[^\d,-]/g, "");
+    // troca a vírgula (decimal brasileiro) por ponto (decimal do JavaScript)
+    valor = valor.replace(",", ".");
     const numero = parseFloat(valor);
     return isNaN(numero) ? 0 : numero;
 }
@@ -320,14 +322,12 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
     tr.innerHTML = `
         <td data-label="Qtd">
             <div class="qtd-wrap">
-                <div class="medida-area">
-                    <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0">
+                <div class="medida-area" style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                    <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0" style="width:70px;">
                     <span class="medida-x">×</span>
-                    <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
-                </div>
-                <div class="medida-total-direto" style="margin-top:4px;">
-                    <span style="font-size:11px;color:#888;">ou m² total:</span>
-                    <input type="number" class="item-input total-direto" placeholder="m² total" step="0.01" min="0" style="width:80px;">
+                    <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0" style="width:70px;">
+                    <span class="medida-x">|</span>
+                    <input type="number" class="item-input total-direto" placeholder="Total m²" step="0.01" min="0" style="width:70px;">
                 </div>
                 <div class="medida-linear">
                     <input type="number" class="item-input comprimento-linear" placeholder="Comprimento (m)" step="0.01" min="0">
@@ -392,14 +392,12 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
 function atualizarVisibilidadeMedidas(tr) {
     const unidade = tr.querySelector(".unidade").value;
     const areaWrap = tr.querySelector(".medida-area");
-    const totalDiretoWrap = tr.querySelector(".medida-total-direto");
     const linearWrap = tr.querySelector(".medida-linear");
     const qtdInput = tr.querySelector(".qtd");
     const legenda = tr.querySelector(".qtd-legenda");
 
     if (unidade === "m²") {
         areaWrap.style.display = "flex";
-        if (totalDiretoWrap) totalDiretoWrap.style.display = "flex";
         linearWrap.style.display = "none";
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
@@ -407,7 +405,6 @@ function atualizarVisibilidadeMedidas(tr) {
         calcularQtdPorArea(tr);
     } else if (unidade === "m") {
         areaWrap.style.display = "none";
-        if (totalDiretoWrap) totalDiretoWrap.style.display = "none";
         linearWrap.style.display = "flex";
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
