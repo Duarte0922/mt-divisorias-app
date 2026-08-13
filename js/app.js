@@ -314,6 +314,12 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                 </div>
                 <input type="number" class="item-input qtd" value="${qtd}" min="0.01" step="0.01">
                 <small class="qtd-legenda">Calculado automaticamente</small>
+                <div class="medida-area">
+                    <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0">
+                    <span class="medida-x">×</span>
+                    <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
+                </div>
+                <button type="button" class="btn-toggle-total" style="background:none;border:none;color:#007bff;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-top:4px;">Informar m² total</button>                
             </div>
         </td>
         <td data-label="Unidade">
