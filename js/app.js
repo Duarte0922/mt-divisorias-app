@@ -14,13 +14,6 @@ if (!firebase.apps.length) {
 }
 const db = firebase.firestore();
 const storage = firebase.storage(); // Inicializa o Storage corretamente
-const auth = firebase.auth();
-
-// LOCAL = o navegador lembra o login mesmo depois de fechar o app/aba.
-// Ou seja: a pessoa faz login uma vez no aparelho dela e não precisa mais digitar senha.
-auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
-    console.warn("Não foi possível definir a persistência do login:", err);
-});
 
 // Ativa o cache offline seguro
 db.enablePersistence().catch((err) => {
@@ -256,140 +249,45 @@ if (document.getElementById("btnExcluirProdutoCadastro")) {
     });
 }
 
-// ====== LOGIN / LOGOUT ======
+// ====== LOGIN SIMPLES (usuário e senha fixos no código, sem Firebase Authentication) ======
+// Login: Divisorias   Senha: 1234
+// Fica salvo no localStorage do aparelho, então a pessoa só digita uma vez por celular.
 const telaLogin = document.getElementById("telaLogin");
-const appConteudo = document.getElementById("appConteudo");
+const appConteudo = document.querySelector("main");
+const USUARIO_VALIDO = "Divisorias";
+const SENHA_VALIDA = "1234";
 
-// Isso roda toda vez que o estado de login muda: ao abrir o site, ao entrar, ou ao sair.
-// Como a persistência é LOCAL, se a pessoa já entrou antes nesse aparelho, isso já vem
-// com "user" preenchido sozinho, sem precisar digitar senha de novo.
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        telaLogin.style.display = "none";
-        appConteudo.style.display = "block";
-        carregarProdutos();
-        limparFormulario();
-        carregarHistorico();
-    } else {
-        telaLogin.style.display = "flex";
-        appConteudo.style.display = "none";
-    }
-});
-
-async function fazerLogin() {
-    const email = document.getElementById("loginEmail").value.trim();
-    const senha = document.getElementById("loginSenha").value;
-    const confirmarSenha = document.getElementById("loginConfirmarSenha").value;
-    const erroEl = document.getElementById("loginErro");
-    const btn = document.getElementById("btnEntrar");
-    erroEl.style.color = "var(--red)";
-    erroEl.textContent = "";
-
-    if (!email || !senha) {
-        erroEl.textContent = "Preencha e-mail e senha.";
-        return;
-    }
-
-    if (modoCriarConta) {
-        if (senha.length < 6) {
-            erroEl.textContent = "A senha precisa ter pelo menos 6 caracteres.";
-            return;
-        }
-        if (senha !== confirmarSenha) {
-            erroEl.textContent = "As senhas não são iguais.";
-            return;
-        }
-    }
-
-    btn.disabled = true;
-    btn.innerText = modoCriarConta ? "Criando conta..." : "Entrando...";
-    try {
-        if (modoCriarConta) {
-            await auth.createUserWithEmailAndPassword(email, senha);
-        } else {
-            await auth.signInWithEmailAndPassword(email, senha);
-        }
-        // Não precisa fazer mais nada aqui: o onAuthStateChanged acima já mostra o app.
-    } catch (error) {
-        if (error.code === "auth/email-already-in-use") {
-            erroEl.textContent = "Esse e-mail já tem conta. Clique em \"Já tem conta? Entrar\" e faça login normalmente.";
-        } else if (error.code === "auth/weak-password") {
-            erroEl.textContent = "Senha muito fraca. Use pelo menos 6 caracteres.";
-        } else if (error.code === "auth/invalid-email") {
-            erroEl.textContent = "Digite um e-mail válido.";
-        } else {
-            erroEl.textContent = modoCriarConta ? "Não foi possível criar a conta." : "E-mail ou senha incorretos.";
-        }
-    } finally {
-        btn.disabled = false;
-        btn.innerText = modoCriarConta ? "Criar Conta" : "Entrar";
-    }
+function entrarNoApp() {
+    telaLogin.classList.remove("ativo");
+    if (appConteudo) appConteudo.style.display = "block";
+    carregarProdutos();
+    limparFormulario();
+    carregarHistorico();
 }
 
-// Alterna entre "Entrar" e "Criar conta" na mesma tela
-let modoCriarConta = false;
-
-function atualizarTextosLogin() {
-    const subtitulo = document.getElementById("loginSubtitulo");
-    const btn = document.getElementById("btnEntrar");
-    const linkAlternar = document.getElementById("linkAlternarModo");
-    const campoConfirmar = document.getElementById("campoConfirmarSenha");
-    const erroEl = document.getElementById("loginErro");
-
-    if (modoCriarConta) {
-        subtitulo.textContent = "Crie sua conta com seu e-mail de verdade — assim dá pra recuperar a senha se um dia esquecer.";
-        btn.innerText = "Criar Conta";
-        linkAlternar.textContent = "Já tem conta? Entrar";
-        campoConfirmar.style.display = "block";
-    } else {
-        subtitulo.textContent = "Entre com seu e-mail e senha para acessar o sistema";
-        btn.innerText = "Entrar";
-        linkAlternar.textContent = "Ainda não tem conta? Criar uma conta";
-        campoConfirmar.style.display = "none";
-    }
-    erroEl.textContent = "";
+if (localStorage.getItem("mtDivisoriasLogado") === "true") {
+    entrarNoApp();
 }
 
-document.getElementById("linkAlternarModo").addEventListener("click", (e) => {
-    e.preventDefault();
-    modoCriarConta = !modoCriarConta;
-    atualizarTextosLogin();
-});
+if (document.getElementById("loginConfirmar")) {
+    document.getElementById("loginConfirmar").addEventListener("click", () => {
+        const usuario = document.getElementById("loginUsuario").value.trim();
+        const senha = document.getElementById("loginSenha").value;
+        const erroEl = document.getElementById("loginErro");
 
-document.getElementById("linkEsqueciSenha").addEventListener("click", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("loginEmail").value.trim();
-    const erroEl = document.getElementById("loginErro");
-
-    if (!email) {
-        erroEl.style.color = "var(--red)";
-        erroEl.textContent = "Digite seu e-mail no campo acima e clique aqui de novo.";
-        return;
-    }
-
-    try {
-        await auth.sendPasswordResetEmail(email);
-        erroEl.style.color = "var(--green)";
-        erroEl.textContent = "Link de recuperação enviado! Confira a caixa de entrada (e o spam) do seu e-mail.";
-    } catch (error) {
-        erroEl.style.color = "var(--red)";
-        erroEl.textContent = "Não foi possível enviar. Confira se o e-mail está digitado certo.";
-    }
-});
-
-document.getElementById("btnEntrar").addEventListener("click", fazerLogin);
-document.getElementById("loginSenha").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") fazerLogin();
-});
-document.getElementById("loginEmail").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") document.getElementById("loginSenha").focus();
-});
-
-if (document.getElementById("btnSair")) {
-    document.getElementById("btnSair").addEventListener("click", () => {
-        if (confirm("Sair da conta neste aparelho? Vai ser preciso digitar a senha de novo pra entrar.")) {
-            auth.signOut();
+        if (usuario === USUARIO_VALIDO && senha === SENHA_VALIDA) {
+            localStorage.setItem("mtDivisoriasLogado", "true");
+            if (erroEl) erroEl.style.display = "none";
+            entrarNoApp();
+        } else if (erroEl) {
+            erroEl.style.display = "block";
         }
+    });
+}
+
+if (document.getElementById("loginSenha")) {
+    document.getElementById("loginSenha").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") document.getElementById("loginConfirmar").click();
     });
 }
 
