@@ -396,26 +396,39 @@ function atualizarVisibilidadeMedidas(tr) {
     const qtdInput = tr.querySelector(".qtd");
     const legenda = tr.querySelector(".qtd-legenda");
 
+    // A Quantidade fica SEMPRE editável e visível, não importa a unidade escolhida.
+    qtdInput.readOnly = false;
+    qtdInput.classList.remove("qtd-calculada");
+
     if (unidade === "m²") {
         areaWrap.style.display = "flex";
         linearWrap.style.display = "none";
-        qtdInput.readOnly = true;
-        qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
-        calcularQtdPorArea(tr);
+        legenda.innerText = "Preenchido pela medida (ou digite a quantidade direto)";
+
+        // Só recalcula automaticamente se algum campo de medida já tiver valor.
+        // Se estiverem vazios, não mexe na Quantidade que já estava lá (ex: o "1" padrão).
+        const c = parseFloat(tr.querySelector(".comprimento").value) || 0;
+        const l = parseFloat(tr.querySelector(".largura").value) || 0;
+        const t = parseFloat(tr.querySelector(".total-direto").value) || 0;
+        if (c > 0 || l > 0) {
+            calcularQtdPorArea(tr);
+        } else if (t > 0) {
+            calcularQtdPorTotalDireto(tr);
+        }
     } else if (unidade === "m") {
         areaWrap.style.display = "none";
         linearWrap.style.display = "flex";
-        qtdInput.readOnly = true;
-        qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
-        calcularQtdPorLinear(tr);
+        legenda.innerText = "Preenchido pela medida (ou digite a quantidade direto)";
+
+        const cl = parseFloat(tr.querySelector(".comprimento-linear").value) || 0;
+        if (cl > 0) {
+            calcularQtdPorLinear(tr);
+        }
     } else {
         areaWrap.style.display = "none";
-        if (totalDiretoWrap) totalDiretoWrap.style.display = "none";
         linearWrap.style.display = "none";
-        qtdInput.readOnly = false;
-        qtdInput.classList.remove("qtd-calculada");
         legenda.style.display = "none";
     }
 }
@@ -696,6 +709,65 @@ async function excluirPedido(idDocumento) {
         limparFormulario();
         carregarHistorico();
     }
+}
+
+// BOTÃO "GERAR PDF" (VER PDF ANTES DE ENVIAR)
+// Gera o PDF com os dados que estão na tela agora e abre numa aba nova pra conferir.
+// NÃO salva no histórico e NÃO abre o WhatsApp — é só uma prévia.
+// Se estiver tudo certo, a pessoa fecha essa aba e clica em "Enviar PDF" normalmente.
+if (document.getElementById("gerarPDF")) {
+    document.getElementById("gerarPDF").addEventListener("click", async () => {
+        const cliente = document.getElementById("cliente").value;
+        const tipo = document.getElementById("tipo").value;
+        const data = document.getElementById("data").value;
+        const total = totalGeral.innerText;
+        const itens = obterItensDoFormulario();
+
+        if (!cliente) { alert("Informe o cliente antes de gerar o PDF."); return; }
+        if (itens.length === 0) { alert("Adicione ao menos um item."); return; }
+
+        const botao = document.getElementById("gerarPDF");
+        const textoOriginal = botao.innerText;
+        botao.innerText = "Gerando...";
+        botao.disabled = true;
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const dadosPedido = {
+                numero: "PRÉVIA",
+                cliente,
+                telefone: document.getElementById("telefone").value,
+                endereco: document.getElementById("endereco").value,
+                cidade: document.getElementById("cidade").value,
+                data, tipo, total, itens,
+                entrada: document.getElementById("entrada").value || "R$ 0,00",
+                formaPagamento: document.getElementById("pagamento").value || "---",
+                observacoes: document.getElementById("observacoes").value
+            };
+
+            await new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.src = "assets/logo.png";
+                img.onload = () => { desenharConteudo(doc, img, dadosPedido, false); resolve(); };
+                img.onerror = () => { desenharConteudo(doc, null, dadosPedido, false); resolve(); };
+            });
+
+            // Abre o PDF numa aba nova, sem salvar nada
+            const pdfBlob = doc.output('blob');
+            const url = URL.createObjectURL(pdfBlob);
+            window.open(url, "_blank");
+
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao gerar a prévia do PDF.");
+        } finally {
+            botao.innerText = textoOriginal;
+            botao.disabled = false;
+        }
+    });
 }
 
 // BOTÃO WHATSAPP: ENVIA O PDF DE VERDADE (ANEXADO), NÃO UM LINK
