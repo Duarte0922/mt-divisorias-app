@@ -325,12 +325,15 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                     <span class="medida-x">×</span>
                     <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
                 </div>
+                <div class="medida-total-direto" style="margin-top:4px;">
+                    <span style="font-size:11px;color:#888;">ou m² total:</span>
+                    <input type="number" class="item-input total-direto" placeholder="m² total" step="0.01" min="0" style="width:80px;">
+                </div>
                 <div class="medida-linear">
                     <input type="number" class="item-input comprimento-linear" placeholder="Comprimento (m)" step="0.01" min="0">
                 </div>
                 <input type="number" class="item-input qtd" value="${qtd}" min="0.01" step="0.01">
                 <small class="qtd-legenda">Calculado automaticamente</small>
-                <button type="button" class="btn-toggle-total" style="background:none;border:none;color:#007bff;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-top:4px;">Informar m² total</button>
             </div>
         </td>
         <td data-label="Unidade">
@@ -367,7 +370,7 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
     tr.querySelector(".comprimento").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".largura").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".comprimento-linear").addEventListener("input", () => calcularQtdPorLinear(tr));
-    tr.querySelector(".btn-toggle-total").addEventListener("click", () => alternarModoTotalDireto(tr));
+    tr.querySelector(".total-direto").addEventListener("input", () => calcularQtdPorTotalDireto(tr));
     tr.querySelector(".descricao").addEventListener("input", function () {
         aplicarProdutoNaLinha(tr, this.value);
     });
@@ -389,34 +392,34 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
 function atualizarVisibilidadeMedidas(tr) {
     const unidade = tr.querySelector(".unidade").value;
     const areaWrap = tr.querySelector(".medida-area");
+    const totalDiretoWrap = tr.querySelector(".medida-total-direto");
     const linearWrap = tr.querySelector(".medida-linear");
     const qtdInput = tr.querySelector(".qtd");
     const legenda = tr.querySelector(".qtd-legenda");
-    const btnToggle = tr.querySelector(".btn-toggle-total");
 
     if (unidade === "m²") {
         areaWrap.style.display = "flex";
+        if (totalDiretoWrap) totalDiretoWrap.style.display = "flex";
         linearWrap.style.display = "none";
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
-        if (btnToggle) { btnToggle.style.display = "inline-block"; btnToggle.innerText = "Informar m² total"; }
         calcularQtdPorArea(tr);
     } else if (unidade === "m") {
         areaWrap.style.display = "none";
+        if (totalDiretoWrap) totalDiretoWrap.style.display = "none";
         linearWrap.style.display = "flex";
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
-        if (btnToggle) btnToggle.style.display = "none";
         calcularQtdPorLinear(tr);
     } else {
         areaWrap.style.display = "none";
+        if (totalDiretoWrap) totalDiretoWrap.style.display = "none";
         linearWrap.style.display = "none";
         qtdInput.readOnly = false;
         qtdInput.classList.remove("qtd-calculada");
         legenda.style.display = "none";
-        if (btnToggle) btnToggle.style.display = "none";
     }
 }
 
@@ -424,6 +427,10 @@ function atualizarVisibilidadeMedidas(tr) {
 function calcularQtdPorArea(tr) {
     const c = parseFloat(tr.querySelector(".comprimento").value) || 0;
     const l = parseFloat(tr.querySelector(".largura").value) || 0;
+    const totalDiretoInput = tr.querySelector(".total-direto");
+    if (totalDiretoInput && (c > 0 || l > 0)) {
+        totalDiretoInput.value = ""; // limpa o total direto pra não conflitar
+    }
     tr.querySelector(".qtd").value = (c * l).toFixed(2);
     calcularTudo();
 }
@@ -435,36 +442,18 @@ function calcularQtdPorLinear(tr) {
     calcularTudo();
 }
 
-// Alterna entre "Comprimento x Largura" e "digitar o m² total direto" (só para unidade m²)
-function alternarModoTotalDireto(tr) {
-    const unidade = tr.querySelector(".unidade").value;
-    if (unidade !== "m²") return;
-
-    const areaWrap = tr.querySelector(".medida-area");
-    const qtdInput = tr.querySelector(".qtd");
-    const legenda = tr.querySelector(".qtd-legenda");
-    const btnToggle = tr.querySelector(".btn-toggle-total");
-
-    const estaEmModoTotal = areaWrap.style.display === "none";
-
-    if (estaEmModoTotal) {
-        // Volta pro modo Comprimento x Largura (comportamento original)
-        areaWrap.style.display = "flex";
-        qtdInput.readOnly = true;
-        qtdInput.classList.add("qtd-calculada");
-        legenda.style.display = "block";
-        btnToggle.innerText = "Informar m² total";
+// Se a pessoa digitar direto no campo "m² total", isso vale e sobrescreve o
+// cálculo por Comprimento x Largura (limpa esses dois campos pra não confundir).
+function calcularQtdPorTotalDireto(tr) {
+    const totalDireto = tr.querySelector(".total-direto").value;
+    if (totalDireto === "") {
         calcularQtdPorArea(tr);
-    } else {
-        // Ativa o modo de digitar o m² total direto
-        areaWrap.style.display = "none";
-        qtdInput.readOnly = false;
-        qtdInput.classList.remove("qtd-calculada");
-        legenda.style.display = "none";
-        btnToggle.innerText = "Usar Compr. × Larg.";
-        qtdInput.value = "";
-        qtdInput.focus();
+        return;
     }
+    tr.querySelector(".comprimento").value = "";
+    tr.querySelector(".largura").value = "";
+    tr.querySelector(".qtd").value = (parseFloat(totalDireto) || 0).toFixed(2);
+    calcularTudo();
 }
 
 // ====== MODAL DE DESCRIÇÃO DO SERVIÇO (campo maior para digitar) ======
