@@ -128,6 +128,22 @@ function carregarProdutos() {
     });
 }
 
+// Converte texto digitado (com vírgula ou ponto) em número de verdade.
+// Aceita formatos como: "10,50" | "1.500,25" | "10.50" | "10"
+function parseValorMonetario(valor) {
+    if (valor === null || valor === undefined) return 0;
+    valor = valor.toString().trim();
+    if (!valor) return 0;
+    // remove tudo que não for dígito, vírgula, ponto ou sinal de menos
+    valor = valor.replace(/[^\d,.-]/g, "");
+    if (valor.includes(",")) {
+        // formato brasileiro: ponto é separador de milhar, vírgula é decimal
+        valor = valor.replace(/\./g, "").replace(",", ".");
+    }
+    const numero = parseFloat(valor);
+    return isNaN(numero) ? 0 : numero;
+}
+
 // Quando o campo Descrição bate com um produto cadastrado, preenche a unidade e o valor padrão sozinho
 function aplicarProdutoNaLinha(tr, valorDigitado) {
     const encontrado = CACHE_PRODUTOS.find(p => p.nome.trim().toLowerCase() === (valorDigitado || "").trim().toLowerCase());
@@ -137,7 +153,7 @@ function aplicarProdutoNaLinha(tr, valorDigitado) {
     if (selectUnidade) selectUnidade.value = encontrado.unidade || "m²";
 
     const inputUnitario = tr.querySelector(".unitario");
-    if (inputUnitario && (!inputUnitario.value || parseFloat(inputUnitario.value) === 0) && encontrado.valorPadrao) {
+    if (inputUnitario && (!inputUnitario.value || parseValorMonetario(inputUnitario.value) === 0) && encontrado.valorPadrao) {
         inputUnitario.value = encontrado.valorPadrao;
     }
 
@@ -151,7 +167,7 @@ if (document.getElementById("btnAdicionarProduto")) {
         const nome = document.getElementById("produtoNome").value.trim();
         if (!nome) { alert("Informe o nome do produto/serviço."); return; }
         const unidade = document.getElementById("produtoUnidade").value;
-        const valorPadrao = parseFloat(document.getElementById("produtoValor").value) || 0;
+        const valorPadrao = parseValorMonetario(document.getElementById("produtoValor").value);
 
         try {
             await db.collection("produtos").add({ nome, unidade, valorPadrao });
@@ -169,7 +185,7 @@ if (document.getElementById("btnAtualizarProduto")) {
         const nome = document.getElementById("produtoNome").value.trim();
         if (!nome) { alert("Informe o nome do produto/serviço."); return; }
         const unidade = document.getElementById("produtoUnidade").value;
-        const valorPadrao = parseFloat(document.getElementById("produtoValor").value) || 0;
+        const valorPadrao = parseValorMonetario(document.getElementById("produtoValor").value);
 
         try {
             await db.collection("produtos").doc(idProdutoEmEdicao).update({ nome, unidade, valorPadrao });
@@ -314,12 +330,7 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                 </div>
                 <input type="number" class="item-input qtd" value="${qtd}" min="0.01" step="0.01">
                 <small class="qtd-legenda">Calculado automaticamente</small>
-                <div class="medida-area">
-                    <input type="number" class="item-input comprimento" placeholder="Compr.(m)" step="0.01" min="0">
-                    <span class="medida-x">×</span>
-                    <input type="number" class="item-input largura" placeholder="Larg.(m)" step="0.01" min="0">
-                </div>
-                <button type="button" class="btn-toggle-total" style="background:none;border:none;color:#007bff;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-top:4px;">Informar m² total</button>                
+                <button type="button" class="btn-toggle-total" style="background:none;border:none;color:#007bff;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;margin-top:4px;">Informar m² total</button>
             </div>
         </td>
         <td data-label="Unidade">
@@ -335,7 +346,7 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
                 <button type="button" class="btn-expandir" title="Escrever descrição detalhada"><i class="fa-solid fa-pen"></i></button>
             </div>
         </td>
-        <td data-label="Valor Unitário"><input type="number" class="item-input unitario" value="${unitario}" step="0.01"></td>
+        <td data-label="Valor Unitário"><input type="text" inputmode="decimal" class="item-input unitario" value="${unitario}" placeholder="0,00"></td>
         <td data-label="Total" class="valorTotal">R$ 0,00</td>
         <td data-label="Ação"><button class="btn-remover">X</button></td>
     `;
@@ -356,6 +367,7 @@ function adicionarItem(qtd = 1, unidade = "m²", descricao = "", unitario = 0, u
     tr.querySelector(".comprimento").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".largura").addEventListener("input", () => calcularQtdPorArea(tr));
     tr.querySelector(".comprimento-linear").addEventListener("input", () => calcularQtdPorLinear(tr));
+    tr.querySelector(".btn-toggle-total").addEventListener("click", () => alternarModoTotalDireto(tr));
     tr.querySelector(".descricao").addEventListener("input", function () {
         aplicarProdutoNaLinha(tr, this.value);
     });
@@ -380,6 +392,7 @@ function atualizarVisibilidadeMedidas(tr) {
     const linearWrap = tr.querySelector(".medida-linear");
     const qtdInput = tr.querySelector(".qtd");
     const legenda = tr.querySelector(".qtd-legenda");
+    const btnToggle = tr.querySelector(".btn-toggle-total");
 
     if (unidade === "m²") {
         areaWrap.style.display = "flex";
@@ -387,6 +400,7 @@ function atualizarVisibilidadeMedidas(tr) {
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
+        if (btnToggle) { btnToggle.style.display = "inline-block"; btnToggle.innerText = "Informar m² total"; }
         calcularQtdPorArea(tr);
     } else if (unidade === "m") {
         areaWrap.style.display = "none";
@@ -394,6 +408,7 @@ function atualizarVisibilidadeMedidas(tr) {
         qtdInput.readOnly = true;
         qtdInput.classList.add("qtd-calculada");
         legenda.style.display = "block";
+        if (btnToggle) btnToggle.style.display = "none";
         calcularQtdPorLinear(tr);
     } else {
         areaWrap.style.display = "none";
@@ -401,6 +416,7 @@ function atualizarVisibilidadeMedidas(tr) {
         qtdInput.readOnly = false;
         qtdInput.classList.remove("qtd-calculada");
         legenda.style.display = "none";
+        if (btnToggle) btnToggle.style.display = "none";
     }
 }
 
@@ -417,6 +433,38 @@ function calcularQtdPorLinear(tr) {
     const c = parseFloat(tr.querySelector(".comprimento-linear").value) || 0;
     tr.querySelector(".qtd").value = c.toFixed(2);
     calcularTudo();
+}
+
+// Alterna entre "Comprimento x Largura" e "digitar o m² total direto" (só para unidade m²)
+function alternarModoTotalDireto(tr) {
+    const unidade = tr.querySelector(".unidade").value;
+    if (unidade !== "m²") return;
+
+    const areaWrap = tr.querySelector(".medida-area");
+    const qtdInput = tr.querySelector(".qtd");
+    const legenda = tr.querySelector(".qtd-legenda");
+    const btnToggle = tr.querySelector(".btn-toggle-total");
+
+    const estaEmModoTotal = areaWrap.style.display === "none";
+
+    if (estaEmModoTotal) {
+        // Volta pro modo Comprimento x Largura (comportamento original)
+        areaWrap.style.display = "flex";
+        qtdInput.readOnly = true;
+        qtdInput.classList.add("qtd-calculada");
+        legenda.style.display = "block";
+        btnToggle.innerText = "Informar m² total";
+        calcularQtdPorArea(tr);
+    } else {
+        // Ativa o modo de digitar o m² total direto
+        areaWrap.style.display = "none";
+        qtdInput.readOnly = false;
+        qtdInput.classList.remove("qtd-calculada");
+        legenda.style.display = "none";
+        btnToggle.innerText = "Usar Compr. × Larg.";
+        qtdInput.value = "";
+        qtdInput.focus();
+    }
 }
 
 // ====== MODAL DE DESCRIÇÃO DO SERVIÇO (campo maior para digitar) ======
@@ -462,7 +510,7 @@ function calcularTudo() {
     let total = 0;
     document.querySelectorAll("#itens tr").forEach(tr => {
         const qtd = parseFloat(tr.querySelector(".qtd").value) || 0;
-        const unitario = parseFloat(tr.querySelector(".unitario").value) || 0;
+        const unitario = parseValorMonetario(tr.querySelector(".unitario").value);
         const subtotal = qtd * unitario;
         tr.querySelector(".valorTotal").innerText = subtotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
         total += subtotal;
@@ -477,7 +525,7 @@ function obterItensDoFormulario() {
         const qtd = parseFloat(tr.querySelector(".qtd").value) || 1;
         const unidade = tr.querySelector(".unidade") ? tr.querySelector(".unidade").value : "un";
         const desc = tr.querySelector(".descricao").value;
-        const unit = parseFloat(tr.querySelector(".unitario").value) || 0;
+        const unit = parseValorMonetario(tr.querySelector(".unitario").value);
         const tot = tr.querySelector(".valorTotal").innerText;
         if (desc) {
             listaItens.push({ qtd: qtd, unidade: unidade, descricao: desc, unitario: unit, totalItem: tot });
